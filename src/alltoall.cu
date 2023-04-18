@@ -3,7 +3,7 @@
  *
  * See LICENSE.txt for license information
  ************************************************************************/
-
+#include <dlfcn.h>
 #include "cuda_runtime.h"
 #include "common.h"
 
@@ -54,11 +54,18 @@ testResult_t AlltoAllRunColl(void* sendbuff, void* recvbuff, size_t count, ncclD
   printf("NCCL 2.7 or later is needed for alltoall. This test was compiled with %d.%d.\n", NCCL_MAJOR, NCCL_MINOR);
   return testNcclError;
 #else
+  void *ncclLib = dlopen("libnccl.so", RTLD_NOW | RTLD_LOCAL);
+  if (ncclLib != nullptr) {
+    if (dlsym(ncclLib, "ncclAllToAll") != nullptr) {
+      NCCLCHECK(ncclAllToAll(sendbuff, recvbuff, count, type, comm, stream));  
+      return testSuccess;
+    }
+  } 
   NCCLCHECK(ncclGroupStart());
-  for (int r=0; r<nRanks; r++) {
-    NCCLCHECK(ncclSend(((char*)sendbuff)+r*rankOffset, count, type, r, comm, stream));
-    NCCLCHECK(ncclRecv(((char*)recvbuff)+r*rankOffset, count, type, r, comm, stream));
-  }
+    for (int r=0; r<nRanks; r++) {
+      NCCLCHECK(ncclSend(((char*)sendbuff)+r*rankOffset, count, type, r, comm, stream));
+      NCCLCHECK(ncclRecv(((char*)recvbuff)+r*rankOffset, count, type, r, comm, stream));
+    }
   NCCLCHECK(ncclGroupEnd());
   return testSuccess;
 #endif

@@ -219,6 +219,10 @@ static size_t wordSize(ncclDataType_t type) {
 #if NCCL_MAJOR >= 2
     //case ncclInt8:
     case ncclUint8:
+#if defined(__CUDA_BF16_TYPES_EXIST__)
+    case ncclFp8E4M3:
+    case ncclFp8E5M2:
+#endif
 #endif
       return 1;
     case ncclHalf:

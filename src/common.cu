@@ -20,13 +20,13 @@ int test_ncclVersion = 0; // init'd with ncclGetVersion()
   ncclDataType_t test_types[ncclNumTypes] = {
     ncclInt8, ncclUint8, ncclInt32, ncclUint32, ncclInt64, ncclUint64, ncclHalf, ncclFloat, ncclDouble
   #if defined(__CUDA_BF16_TYPES_EXIST__) && NCCL_VERSION_CODE >= NCCL_VERSION(2,10,0)
-    , ncclBfloat16
+    , ncclBfloat16, ncclFp8E4M3, ncclFp8E5M2
   #endif
   };
   const char *test_typenames[ncclNumTypes] = {
     "int8", "uint8", "int32", "uint32", "int64", "uint64", "half", "float", "double"
   #if defined(__CUDA_BF16_TYPES_EXIST__) && NCCL_VERSION_CODE >= NCCL_VERSION(2,10,0)
-    , "bfloat16"
+    , "bfloat16", "fp8_e4m3", "fp8_e5m2"
   #endif
   };
   int test_typenum = -1;
@@ -353,7 +353,7 @@ testResult_t startColl(struct threadArgs* args, ncclDataType_t type, ncclRedOp_t
         int8_t i8; uint8_t u8; int32_t i32; uint32_t u32; int64_t i64; uint64_t u64;
         half f16; float f32; double f64;
         #if defined(__CUDA_BF16_TYPES_EXIST__)
-        __nv_bfloat16 bf16;
+        __nv_bfloat16 bf16; __nv_fp8_e4m3 fp8_e4m3; __nv_fp8_e5m2 fp8_e5m2;
         #endif
       };
       switch(type) {
@@ -368,6 +368,8 @@ testResult_t startColl(struct threadArgs* args, ncclDataType_t type, ncclRedOp_t
       case ncclFloat64: f64 = ncclVerifiablePremulScalar<double>(rank); break;
       #if defined(__CUDA_BF16_TYPES_EXIST__)
       case ncclBfloat16: bf16 = ncclVerifiablePremulScalar<__nv_bfloat16>(rank); break;
+      case ncclFp8E4M3: fp8_e4m3 = ncclVerifiablePremulScalar<__nv_fp8_e4m3>(rank); break;
+      case ncclFp8E5M2: fp8_e5m2 = ncclVerifiablePremulScalar<__nv_fp8_e5m2>(rank); break;
       #endif
       }
       NCCLCHECK(ncclRedOpCreatePreMulSum(&op, &u64, type, ncclScalarHostImmediate, args->comms[i]));
@@ -674,6 +676,8 @@ int main(int argc, char* argv[]) {
       test_opnum++; // ncclAvg
       #if defined(__CUDA_BF16_TYPES_EXIST__)
         test_typenum++; // bfloat16
+        test_typenum++; // fp8_e4m3
+        test_typenum++; // fp8_e5m2
       #endif
     }
     if (NCCL_VERSION_CODE >= NCCL_VERSION(2,11,0) && test_ncclVersion >= NCCL_VERSION(2,11,0)) {

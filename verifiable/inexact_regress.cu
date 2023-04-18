@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
+#include <cuda_fp8.h>
 
 using std::uint64_t;
 using std::uint32_t;
