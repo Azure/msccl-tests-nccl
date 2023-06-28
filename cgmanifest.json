@@ -1,0 +1,14 @@
+{
+    "registrations": [
+      {
+        "component": {
+          "type": "git",
+          "git": {
+            "repositoryUrl": "https://github.com/NVIDIA/nccl-tests.git",
+            "commitHash": "0b4c4cb"
+          }
+        }
+      }
+    ]
+  }
+  
