@@ -7,6 +7,8 @@
 #include <cuda_fp16.h>
 #if CUDART_VERSION >= 11000
 #include <cuda_bf16.h>
+#endif
+#if CUDART_VERSION >= 11080
 #include <cuda_fp8.h>
 #endif
 
@@ -14,6 +16,12 @@
   #define HAVE_ncclBfloat16 1
 #else
   #define HAVE_ncclBfloat16 0
+#endif
+
+#if NCCL_VERSION_CODE >= NCCL_VERSION(2,17,0) && defined(__CUDA_FP8_TYPES_EXIST__)
+  #define HAVE_ncclfp8 1
+#else
+  #define HAVE_ncclfp8 0
 #endif
 
 #if NCCL_VERSION_CODE >= NCCL_VERSION(2,10,0)
@@ -88,6 +96,8 @@ struct IsIntegral<half>: std::false_type {};
 #ifdef __CUDA_BF16_TYPES_EXIST__
 template<>
 struct IsIntegral<__nv_bfloat16>: std::false_type {};
+#endif
+#ifdef __CUDA_FP8_TYPES_EXIST__
 template<>
 struct IsIntegral<__nv_fp8_e4m3>: std::false_type {};
 template<>
@@ -129,6 +139,8 @@ namespace {
   __host__ __device__ __nv_bfloat16 castTo<__nv_bfloat16>(float x) {
     return __float2bfloat16(x);
   }
+  #endif
+  #ifdef __CUDA_FP8_TYPES_EXIST__
   template<>
   __host__ __device__ __nv_fp8_e4m3 castTo<__nv_fp8_e4m3>(float x) {
     return static_cast<__nv_fp8_e4m3>(x);
@@ -172,6 +184,8 @@ struct ReduceSum {
       return __float2bfloat16(__bfloat162float(a) + __bfloat162float(b));
     #endif
   }
+  #endif
+  #ifdef __CUDA_FP8_TYPES_EXIST__
   __host__ __device__ __nv_fp8_e4m3 operator()(__nv_fp8_e4m3 a, __nv_fp8_e4m3 b) const {
     #if __CUDA_ARCH__ >= 800
       return static_cast<__nv_fp8_e4m3>(__hadd(static_cast<__half>(a), static_cast<__half>(b)));
@@ -210,6 +224,8 @@ struct ReduceProd {
       return __float2bfloat16(__bfloat162float(a) * __bfloat162float(b));
     #endif
   }
+  #endif
+  #ifdef __CUDA_FP8_TYPES_EXIST__
   __host__ __device__ __nv_fp8_e4m3 operator()(__nv_fp8_e4m3 a, __nv_fp8_e4m3 b) const {
     #if __CUDA_ARCH__ >= 800
       return static_cast<__nv_fp8_e4m3>(__hmul(static_cast<__half>(a), static_cast<__half>(b)));
@@ -266,6 +282,8 @@ struct ReduceMin {
       return __bfloat162float(a) < __bfloat162float(b) ? a : b;
     #endif
   }
+  #endif
+  #ifdef __CUDA_FP8_TYPES_EXIST__
   __host__ __device__ __nv_fp8_e4m3 operator()(__nv_fp8_e4m3 a, __nv_fp8_e4m3 b) const {
     #if __CUDA_ARCH__ >= 800
       return static_cast<__nv_fp8_e4m3>(__hmin(static_cast<__half>(a), static_cast<__half>(b)));
@@ -308,6 +326,8 @@ struct ReduceMax {
       return __bfloat162float(a) > __bfloat162float(b) ? a : b;
     #endif
   }
+  #endif
+  #ifdef __CUDA_FP8_TYPES_EXIST__
   __host__ __device__ __nv_fp8_e4m3 operator()(__nv_fp8_e4m3 a, __nv_fp8_e4m3 b) const {
     #if __CUDA_ARCH__ >= 800
       return static_cast<__nv_fp8_e4m3>(__hmax(static_cast<__half>(a), static_cast<__half>(b)));
@@ -402,6 +422,8 @@ struct FloatLayout<__nv_bfloat16> {
   static constexpr int exponent_bits = 8, mantissa_bits = 7;
   static constexpr int exponent_bias = (1<<(exponent_bits-1))-1;
 };
+#endif
+#ifdef __CUDA_FP8_TYPES_EXIST__
 template<>
 struct FloatLayout<__nv_fp8_e4m3> {
   static constexpr int exponent_bits = 4, mantissa_bits = 3;
@@ -942,6 +964,8 @@ void prepareInput1(
   case ncclFloat16: CASE_TY(half)
   #if HAVE_ncclBfloat16
   case ncclBfloat16: CASE_TY(__nv_bfloat16)
+  #endif
+  #if HAVE_ncclfp8
   case ncclFp8E4M3: CASE_TY(__nv_fp8_e4m3)
   case ncclFp8E5M2: CASE_TY(__nv_fp8_e5m2)
   #endif
@@ -1020,6 +1044,8 @@ void prepareExpected1(
   case ncclFloat16: CASE_TY(half)
   #if HAVE_ncclBfloat16
   case ncclBfloat16: CASE_TY(__nv_bfloat16)
+  #endif
+  #if HAVE_ncclfp8
   case ncclFp8E4M3: CASE_TY(__nv_fp8_e4m3)
   case ncclFp8E5M2: CASE_TY(__nv_fp8_e5m2)
   #endif
@@ -1092,6 +1118,8 @@ __host__ __device__ unsigned calcSumFloatTolerance(int rank_n, int elt_ty) {
     power = .91f;
     coef = .66f;
     break;
+  #endif
+  #if HAVE_ncclfp8
   case ncclFp8E4M3:
   case ncclFp8E5M2:
     power = .91f;
@@ -1219,6 +1247,8 @@ void ncclVerifiableVerify(
   bool floating = elt_ty == ncclFloat16 || elt_ty == ncclFloat32 || elt_ty == ncclFloat64;
   #if HAVE_ncclBfloat16
     floating |= elt_ty == ncclBfloat16;
+  #endif
+  #if HAVE_ncclfp8
     floating |= elt_ty == ncclFp8E4M3;
     floating |= elt_ty == ncclFp8E5M2;
   #endif
@@ -1249,6 +1279,8 @@ void ncclVerifiableVerify(
   case ncclFloat16: CASE_TY(half, uint16_t)
   #if HAVE_ncclBfloat16
   case ncclBfloat16: CASE_TY(__nv_bfloat16, uint16_t)
+  #endif 
+  #if HAVE_ncclfp8
   case ncclFp8E4M3: CASE_TY(__nv_fp8_e4m3, uint8_t)
   case ncclFp8E5M2: CASE_TY(__nv_fp8_e5m2, uint8_t)
   #endif
@@ -1318,6 +1350,8 @@ __global__ void sweep() {
   sweep1<half>(ncclFloat16, "half");
   #if HAVE_ncclBfloat16
     sweep1<__nv_bfloat16>(ncclBfloat16, "bfloat16");
+  #endif 
+  #if HAVE_ncclfp8
     sweep1<__nv_fp8_e4m3>(ncclFp8E4M3, "fp8_e4m3");
     sweep1<__nv_fp8_e5m2>(ncclFp8E5M2, "fp8_e5m2");
   #endif
